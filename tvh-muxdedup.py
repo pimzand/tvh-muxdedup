@@ -108,62 +108,6 @@ def do_get0(*args):
         error(10, 'HTTP ERROR "%s" %s %s', resp.url, resp.code, resp.reason)
     return resp.body
 
-def do_get(*args):
-    body = do_get0(*args)
-    if type(body) == type({}) or type(body) == type([]):
-        print(json.dumps(body, indent=4, separators=(',', ': ')))
-    else:
-        print(body)
-
-def do_export(*args):
-    if len(args) < 1: error(1, 'get [uuid]')
-    body = do_get0('raw/export', {'uuid':args[0]})
-    if type(body) != type({}):
-        error(11, 'Unknown data')
-    if 'entries' in body:
-        body = body['entries']
-    if len(body) == 1:
-        body = body[0]
-    if not 'uuid' in body:
-        body['uuid'] = args[0].strip()
-    print(json.dumps(body, indent=4, separators=(',', ': ')))
-
-def do_exportcls(*args):
-    if len(args) < 1: error(1, 'get [class]')
-    body = do_get0('raw/export', {'class':args[0]})
-    if type(body) != type({}) and type(body) != type([]):
-        error(11, 'Unknown data')
-    if 'entries' in body:
-        body = body['entries']
-    if len(body) == 1:
-        body = body[0]
-    print(json.dumps(body, indent=4, separators=(',', ': ')))
-
-def do_import(*args):
-    if len(args) < 1:
-        jdata = sys.stdin.read()
-    else:
-        fp = open(args[0])
-        jdata = fp.read()
-        fp.close()
-    jdata = json.loads(jdata.decode('utf-8'))
-    body = do_get0('raw/import', {'node':jdata})
-    if body and type(body) != type({}):
-        error(11, 'Unknown data / response')
-
-def do_paths(*args):
-    do_get('pathlist')
-
-def do_classes(*args):
-    do_get('classes')
-
-def do_unknown(*args):
-    r = 'Please, specify a valid command:\n'
-    for n in globals():
-        if n.startswith('do_') and n != 'do_unknown':
-            r += '  ' + n[3:] + '\n'
-    error(1, r[:-1])
-
 def main(argv):
     global DEBUG
     if not TVH_USER or not TVH_PASS:
