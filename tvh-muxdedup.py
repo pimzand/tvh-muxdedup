@@ -1,7 +1,8 @@
 #! /usr/bin/env python3
 
 #
-# TVH json import/export tool, requires python3
+# deduplicate muxes in tvheadend
+# requires python 3
 #
 
 import os
@@ -10,12 +11,15 @@ import json
 import traceback
 import urllib.request as urllib
 from urllib.parse import urlencode, quote
+from datetime import datetime
+from operator import itemgetter
 
 def env(key, deflt):
     if key in os.environ: return os.environ[key]
     return deflt
 
 DEBUG=False
+DRYRUN=True
 
 TVH_API=env('TVH_API_URL', 'http://localhost:9981/api')
 TVH_USER=env('TVH_USER', None)
@@ -42,9 +46,6 @@ class Response(object):
 def error(lvl, msg, *args):
     sys.stderr.write(msg % args + '\n')
     sys.exit(lvl)
-
-def info(msg, *args):
-    print('TVH: ' + msg % args)
 
 class TVHeadend(object):
 
@@ -107,6 +108,190 @@ def do_get0(*args):
     if resp.code != 200 and resp.code != 201:
         error(10, 'HTTP ERROR "%s" %s %s', resp.url, resp.code, resp.reason)
     return resp.body
+
+def format_date(ts):
+    if ts == 0:
+        return 'never'
+    else:
+        return (datetime.utcfromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S'))
+
+def do_dedup(*args):
+    dupkeys     = ['orbital','polarisation']            # fields that must be exactly the same to be a dup
+    missingkeys = ['cridauth','pnetwork_name']          # fields that may be missing in a mux
+    nocopykeys  = ['uuid', 'services','scan_result']    # fields that should never be copied
+    datekeys    = ['created','scan_first','scan_last']  # fields that should be formatted as dates
+    nocopykeys.extend(datekeys)
+    
+    scanresults =  ['NONE', 'OK', 'FAIL', 'PARTIAL', 'IGNORE']
+
+    # get all the services that are mapped to channels
+    channels = do_get0('raw/export', {'class':'channel'})
+    mappedservices = []
+    for channel in channels:
+        mappedservices.extend(channel['services'])
+
+    # get the service name for every mapped services
+    channelnames = []
+    for service in do_get0('raw/export', {'class':'service'}):
+        if service['uuid'] in mappedservices:
+            channelnames.append({'uuid': service['uuid'], 'svcname': service['svcname']})
+
+    # get a sorted list of muxes
+    muxes = sorted(do_get0('raw/export', {'class':'dvb_mux_dvbs'}), key=itemgetter('orbital', 'frequency')) 
+    nmuxes = len(muxes)
+
+    # add missing fields in muxes
+    for mux in muxes:
+        for missingkey in missingkeys:
+            if not missingkey in mux:
+                mux[missingkey] = u''
+
+    # find duplicate muxes
+    modmuxes = []
+    ndups = 0
+    for i in range(nmuxes):
+        for j in range(i+1, nmuxes):
+            thismux = muxes[i]
+            thatmux = muxes[j]
+            isdup = True
+            for key in dupkeys:
+                if thismux[key] != thatmux[key]:
+                    isdup = False
+                    break
+            if abs(thismux['frequency'] - thatmux['frequency']) >= 1000:
+                    isdup = False
+
+            if isdup:
+                ndups += 1
+                docopy = True
+                print('dup #{}: {} {}{}'.format(ndups, thismux['orbital'], int(round(thismux['frequency'] / 1000, 0)), thismux['polarisation']))
+
+                # find best mux of a duplicate pair, assuming newest is best
+                if thismux['created'] > thatmux['created']:
+                    newermux = thismux
+                    oldermux = thatmux
+                elif thismux['created'] < thatmux['created']:
+                    newermux = thatmux
+                    oldermux = thismux
+                elif thismux['scan_first'] > thatmux['scan_first']:
+                    newermux = thismux
+                    oldermux = thatmux
+                elif thismux['scan_first'] < thatmux['scan_first']:
+                    newermux = thatmux
+                    oldermux = thismux
+                elif thismux['scan_last'] > thatmux['scan_last']:
+                    newermux = thismux
+                    oldermux = thatmux
+                elif thismux['scan_last'] < thatmux['scan_last']:
+                    newermux = thatmux
+                    oldermux = thismux
+                # bail out if all dates are the same
+                else:
+                    print('all dates identical')
+                    newermux = thismux
+                    oldermux = thatmux
+                    docopy = False
+
+                # bail out if best mux is not OK
+                if newermux['scan_result'] != 1:
+                    print('newer mux is not OK')
+                    docopy = False
+
+                # texts
+                if DRYRUN:
+                    mod = 'would modify'
+                    notmod = 'would not modify'
+                    upd = 'would update'
+                    dlt = 'would delete'
+                else:
+                    mod = 'modifying'
+                    notmod = 'not modifying'
+                    upd = 'updating'
+                    dlt = 'deleting'
+
+                # show the dup muxes side by side, pretty printed
+                fmt = '{:14}: {:<32} {:<32}'
+                print(fmt.format('', 'newer mux', 'older mux'))
+                key = 'uuid'
+                print(fmt.format(key, newermux[key], oldermux[key]))
+                key= 'scan_result'
+                print(fmt.format(key, scanresults[newermux[key]], scanresults[oldermux[key]]))
+                key = 'services'
+                print(fmt.format(key, len(newermux[key]), len(oldermux[key])))
+                newermappings = len(set(newermux[key]) & set(mappedservices))
+                oldermappings = len(set(oldermux[key]) & set(mappedservices))
+                print(fmt.format('mappings', newermappings, oldermappings))
+                for key in datekeys:
+                    print(fmt.format(key, format_date(newermux[key]), format_date(oldermux[key])))
+
+                # show the differences
+                nupdates = 0
+                for key, newervalue in newermux.items():
+                    if key in nocopykeys:
+                        continue
+                    oldervalue = oldermux[key]
+                    if type(newervalue) == bytes:
+                        newervalue = newervalue.encode('utf-8')
+                        oldervalue = oldervalue.encode('utf-8')
+                    if newervalue != oldervalue:
+                        print(fmt.format(key, newervalue, oldervalue))
+                        if docopy and key not in nocopykeys:
+                            oldermux[key] = newermux[key]
+                            nupdates += 1
+
+                # show the channels mapped to the mux, by service name
+                for mux in [newermux,oldermux]:
+                    for service in mux['services']:
+                        for channelname in channelnames:
+                            if channelname['uuid'] == service:
+                                svcname = channelname['svcname']
+                                if mux == newermux:
+                                    print(fmt.format('channel', svcname, ''))
+                                else:
+                                    print(fmt.format('channel', '', svcname))
+
+                # skip a duplicate set if either mux was previously modified or deleted
+                neweruuid = newermux['uuid']
+                olderuuid = oldermux['uuid']
+                if neweruuid in modmuxes:
+                    print('mux {} is already modified or deleted'.format(neweruuid))
+                elif olderuuid in modmuxes:
+                    print('mux {} is already modified or deleted'.format(olderuuid))
+                else:
+                    if docopy and oldermappings == 0:
+                        # older mux has no mappings, so just delete it
+                        modmuxes.append(olderuuid)
+                        print('{} mux {}'.format(dlt, olderuuid))
+                        if not DRYRUN:
+                            body = do_get0('idnode/delete', {'uuid': olderuuid})
+                            if body and type(body) != type({}):
+                                error(11, 'Unknown data / response')
+                    elif docopy and nupdates > 0:
+                        # copy settings from newer mux to older mux
+                        modmuxes.append(olderuuid)
+                        print('{} mux {}'.format(upd, olderuuid))
+                        if not DRYRUN:
+                            body = do_get0('raw/import', {'node':oldermux})
+                            if body and type(body) != type({}):
+                                error(11, 'Unknown data / response')
+                        # then delete the newer mux, unless it has channel mappings too
+                        if newermappings == 0:
+                            modmuxes.append(neweruuid)
+                            print('{} mux {}'.format(dlt, neweruuid))
+                            if not DRYRUN:
+                                body = do_get0('idnode/delete', {'uuid': neweruuid})
+                                if body and type(body) != type({}):
+                                    error(11, 'Unknown data / response')
+                    elif newermappings == 0 and newermux['scan_result'] == 2:
+                        # always delete the newer mux if it is bad
+                        modmuxes.append(neweruuid)
+                        print('{} mux {}'.format(dlt, neweruuid))
+                        if not DRYRUN:
+                            body = do_get0('idnode/delete', {'uuid': neweruuid})
+                            if body and type(body) != type({}):
+                                error(11, 'Unknown data / response')
+
+                print()
 
 def main(argv):
     global DEBUG
