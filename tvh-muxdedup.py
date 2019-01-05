@@ -173,7 +173,7 @@ def do_unknown(*args):
 def main(argv):
     global DEBUG
     if not TVH_USER or not TVH_PASS:
-        error(2, 'No credentals')
+        error(2, 'No credentials')
     if len(argv) > 1 and argv[1] == '--debug':
         DEBUG=1
         argv.pop(0)
