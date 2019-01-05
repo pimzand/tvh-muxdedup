@@ -110,16 +110,15 @@ def do_get0(*args):
 
 def main(argv):
     global DEBUG
+    global DRYRUN
     if not TVH_USER or not TVH_PASS:
         error(2, 'No credentials')
-    if len(argv) > 1 and argv[1] == '--debug':
-        DEBUG=1
-        argv.pop(0)
-    cmd = 'do_' + (len(argv) > 1 and argv[1] or 'unknown')
-    if cmd in globals():
-        globals()[cmd](*argv[2:])
-    else:
-        do_unknown()
+    for arg in argv:
+        if arg == '--debug':
+            DEBUG = True
+        if arg in ['--no-dry-run','--nodryrun']:
+            DRYRUN = False
+    do_dedup()
 
 if __name__ == "__main__":
     main(sys.argv)
