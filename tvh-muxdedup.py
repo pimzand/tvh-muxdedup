@@ -1,21 +1,15 @@
-#! /usr/bin/env python
+#! /usr/bin/env python3
 
 #
-# TVH json import/export tool, compatible with both python2 and python3
+# TVH json import/export tool, requires python3
 #
 
 import os
 import sys
 import json
 import traceback
-try:
-    # Python 3
-    import urllib.request as urllib
-    from urllib.parse import urlencode, quote
-except ImportError:
-    # Python 2
-    import urllib2 as urllib
-    from urllib import urlencode, quote
+import urllib.request as urllib
+from urllib.parse import urlencode, quote
 
 def env(key, deflt):
     if key in os.environ: return os.environ[key]
