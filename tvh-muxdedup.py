@@ -115,6 +115,16 @@ def format_date(ts):
     else:
         return (datetime.utcfromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S'))
 
+def delete_mux(uuid):
+    body = do_get0('idnode/delete', {'uuid': uuid})
+    if body and type(body) != type({}):
+        error(11, 'Unknown data / response')
+
+def update_mux(mux):
+    body = do_get0('raw/import', {'node': mux})
+    if body and type(body) != type({}):
+        error(11, 'Unknown data / response')
+
 def do_dedup(*args):
     dupkeys     = ['orbital','polarisation']                    # fields that must be exactly the same to be a dup
     missingkeys = ['cridauth','pnetwork_name','epg_module_id']  # fields that may be missing in a mux
@@ -263,33 +273,25 @@ def do_dedup(*args):
                         modmuxes.append(olderuuid)
                         print('{} mux {}'.format(dlt, olderuuid))
                         if not DRYRUN:
-                            body = do_get0('idnode/delete', {'uuid': olderuuid})
-                            if body and type(body) != type({}):
-                                error(11, 'Unknown data / response')
+                            delete_mux(olderuuid)
                     elif docopy and nupdates > 0:
-                        # copy settings from newer mux to older mux
+                        # save parameters that were copied from newer mux to older mux
                         modmuxes.append(olderuuid)
                         print('{} mux {}'.format(upd, olderuuid))
                         if not DRYRUN:
-                            body = do_get0('raw/import', {'node':oldermux})
-                            if body and type(body) != type({}):
-                                error(11, 'Unknown data / response')
+                            update_mux(oldermux)
                         # then delete the newer mux, unless it has channel mappings too
                         if newermappings == 0:
                             modmuxes.append(neweruuid)
                             print('{} mux {}'.format(dlt, neweruuid))
                             if not DRYRUN:
-                                body = do_get0('idnode/delete', {'uuid': neweruuid})
-                                if body and type(body) != type({}):
-                                    error(11, 'Unknown data / response')
+                                delete_mux(neweruuid)
                     elif newermappings == 0 and newermux['scan_result'] == 2:
                         # always delete the newer mux if it is bad
                         modmuxes.append(neweruuid)
                         print('{} mux {}'.format(dlt, neweruuid))
                         if not DRYRUN:
-                            body = do_get0('idnode/delete', {'uuid': neweruuid})
-                            if body and type(body) != type({}):
-                                error(11, 'Unknown data / response')
+                            delete_mux(neweruuid)
 
                 print()
 
