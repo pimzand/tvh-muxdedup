@@ -116,10 +116,10 @@ def format_date(ts):
         return (datetime.utcfromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S'))
 
 def do_dedup(*args):
-    dupkeys     = ['orbital','polarisation']            # fields that must be exactly the same to be a dup
-    missingkeys = ['cridauth','pnetwork_name']          # fields that may be missing in a mux
-    nocopykeys  = ['uuid', 'services','scan_result']    # fields that should never be copied
-    datekeys    = ['created','scan_first','scan_last']  # fields that should be formatted as dates
+    dupkeys     = ['orbital','polarisation']                    # fields that must be exactly the same to be a dup
+    missingkeys = ['cridauth','pnetwork_name','epg_module_id']  # fields that may be missing in a mux
+    nocopykeys  = ['uuid', 'services','scan_result']            # fields that should never be copied
+    datekeys    = ['created','scan_first','scan_last']          # fields that should be formatted as dates
     nocopykeys.extend(datekeys)
     
     scanresults =  ['NONE', 'OK', 'FAIL', 'PARTIAL', 'IGNORE']
