@@ -132,7 +132,7 @@ def do_dedup(*args):
     # fields that may be missing in a mux
     missingkeys = ['cridauth','pnetwork_name','epg_module_id']
     # fields that should never be copied
-    nocopykeys  = ['uuid', 'services','scan_result']
+    nocopykeys  = ['uuid', 'services','scan_result','epg_module_id']
     # fields that should be formatted as dates
     datekeys    = ['created','scan_first','scan_last']
     # datekeys should not be copied too
