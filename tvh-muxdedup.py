@@ -130,7 +130,7 @@ def do_dedup(*args):
     # fields that must be exactly the same to be considered a dup
     dupkeys     = ['orbital','polarisation']
     # fields that may be missing in a mux
-    nocopykeys  = ['uuid','services','scan_result','epg_module_id']
+    nocopykeys  = ['uuid','services','scan_result']
     # fields that should be formatted as dates
     datekeys    = ['created','scan_first','scan_last']
     # datekeys should not be copied too
@@ -167,6 +167,9 @@ def do_dedup(*args):
                 mux[key] = u''
                 if not key in missingkeys:
                     missingkeys.append(key)
+
+    # add missing keys list to the list of keys that should not be copied
+    nocopykeys.extend(missingkeys)
 
     # find duplicate muxes
     modmuxes = []
