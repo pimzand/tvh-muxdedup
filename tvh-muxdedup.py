@@ -160,7 +160,7 @@ def do_dedup(*args):
     for mux in muxes:
         for missingkey in missingkeys:
             if not missingkey in mux:
-                mux[missingkey] = u''
+                mux[missingkey] = b''
 
     # find duplicate muxes
     modmuxes = []
