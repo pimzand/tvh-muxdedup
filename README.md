@@ -33,6 +33,10 @@ TVH_URL_API   | URL like http://localhost:9981/api
 TVH_USER      | username for HTTP API
 TVH_PASS      | password for HTTP API
 
+Requirements
+-------------
+Tvheadend 4.3+
+Python 3
 
 Usage
 -------------
