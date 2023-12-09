@@ -11,7 +11,7 @@ import json
 import traceback
 import urllib.request as urllib
 from urllib.parse import urlencode, quote
-from datetime import datetime
+from datetime import datetime, UTC
 from operator import itemgetter
 
 def env(key, deflt):
@@ -113,7 +113,7 @@ def format_date(ts):
     if ts == 0:
         return 'never'
     else:
-        return (datetime.utcfromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S'))
+        return (datetime.fromtimestamp(ts, UTC).strftime('%Y-%m-%d %H:%M:%S'))
 
 def delete_mux(uuid):
     body = do_get0('idnode/delete', {'uuid': uuid})
